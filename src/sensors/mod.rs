@@ -42,7 +42,6 @@ impl Gyroscope {
             );
 
             if !err.is_null() || result != 1 {
-                let ys = Error::from_glib_full(err as *mut glib::ffi::GError);
                 return Err(Error::from_glib_full(err as *mut glib::ffi::GError));
             }
         }
