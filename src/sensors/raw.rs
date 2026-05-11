@@ -7,6 +7,7 @@
 #![allow(dead_code)]
 
 use glib::Error;
+use std::{os::raw::c_void, time::Duration};
 
 include!(concat!(env!("OUT_DIR"), "/bindings.rs"));
 
@@ -68,5 +69,46 @@ impl Drop for SscObject {
             println!("dropping GObject ref: {:p}", self.ptr);
             g_object_unref(self.ptr as *mut _);
         }
+    }
+}
+
+pub struct Cancellable {
+    _ptr: *mut _GCancellable,
+}
+
+impl Cancellable {
+    fn new() -> Self {
+        Self {
+            _ptr: unsafe { g_cancellable_new() },
+        }
+    }
+
+    pub fn ptr(&self) -> *mut _GCancellable {
+        self._ptr
+    }
+
+    pub fn cancel_after(timeout: Duration) -> Self {
+        let this = Self::new();
+        let this_ptr_u64 = this.ptr() as ulong;
+        let this_ptr = this.ptr() as *mut c_void;
+
+        unsafe { g_object_ref(this_ptr) };
+
+        std::thread::spawn(move || {
+            std::thread::sleep(timeout);
+            unsafe {
+                let this_raw = this_ptr_u64 as *mut _GCancellable;
+                g_cancellable_cancel(this_raw);
+                g_object_unref(this_raw as *mut c_void);
+            }
+        });
+
+        this
+    }
+}
+
+impl Drop for Cancellable {
+    fn drop(&mut self) {
+        unsafe { g_object_unref(self.ptr() as gpointer) };
     }
 }
