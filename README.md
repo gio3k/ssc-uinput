@@ -32,7 +32,15 @@ Example: `export SSCU_IMU_OUTPUT_SCALE=100.0`
 
 This tool is dependent on [hexagonrpcd](https://github.com/linux-msm/hexagonrpc) and [libssc](https://codeberg.org/DylanVanAssche/libssc)
 
-Try to get iio-sensor-proxy working first - if that runs on your device, you should be able to use this
+Try to get iio-sensor-proxy working first - if that runs on your device, you should be able to run this
+
+```
+# run it in the background
+./ssc-uinput &
+
+# check evtest, should see the device
+evtest
+```
 
 ## Compiling
 
