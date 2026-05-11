@@ -5,6 +5,7 @@ use evdev::uinput::VirtualDevice;
 use evdev::{AbsInfo, AttributeSet};
 use evdev::{AbsoluteAxisCode, PropType};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 
 pub mod sensors;
 
@@ -12,6 +13,8 @@ pub mod sensors;
 const ENV_GYROSCOPE_MOUNT_MATRIX: &str = "SSCU_GYROSCOPE_MOUNT_MATRIX";
 const ENV_ACCELEROMETER_MOUNT_MATRIX: &str = "SSCU_ACCELEROMETER_MOUNT_MATRIX";
 const ENV_IMU_OUTPUT_SCALE: &str = "SSCU_IMU_OUTPUT_SCALE";
+
+const SSC_OPEN_TIMEOUT: Duration = Duration::from_secs(10);
 
 const GYROSCOPE_EVENT_RANGE: i32 = 0x8000;
 const GYROSCOPE_UNITS_PER_ONE: f32 = 1024.0;
@@ -179,32 +182,49 @@ fn main() {
         let device = Arc::clone(&device);
 
         println!("Opening / creating the gyroscope...");
-        sensors::Gyroscope::try_create(move |x, y, z| {
-            let mut device = device.lock().unwrap();
+        match sensors::Gyroscope::try_create(
+            move |x, y, z| {
+                let mut device = device.lock().unwrap();
 
-            let (x, y, z) = apply_matrix(&matrix, x, y, z);
+                let (x, y, z) = apply_matrix(&matrix, x, y, z);
 
-            device
-                .emit(&[
-                    evdev::InputEvent::new(
-                        evdev::EventType::ABSOLUTE.0,
-                        AbsoluteAxisCode::ABS_RX.0,
-                        (x.to_degrees() * GYROSCOPE_EVENT_RESOLUTION * imu_output_scale) as i32,
-                    ),
-                    evdev::InputEvent::new(
-                        evdev::EventType::ABSOLUTE.0,
-                        AbsoluteAxisCode::ABS_RY.0,
-                        (y.to_degrees() * GYROSCOPE_EVENT_RESOLUTION * imu_output_scale) as i32,
-                    ),
-                    evdev::InputEvent::new(
-                        evdev::EventType::ABSOLUTE.0,
-                        AbsoluteAxisCode::ABS_RZ.0,
-                        (z.to_degrees() * GYROSCOPE_EVENT_RESOLUTION * imu_output_scale) as i32,
-                    ),
-                ])
-                .expect("Failed to emit an event (virtual gyroscope)")
-        })
-        .expect("Failed to open the gyroscope!")
+                device
+                    .emit(&[
+                        evdev::InputEvent::new(
+                            evdev::EventType::ABSOLUTE.0,
+                            AbsoluteAxisCode::ABS_RX.0,
+                            (x.to_degrees() * GYROSCOPE_EVENT_RESOLUTION * imu_output_scale) as i32,
+                        ),
+                        evdev::InputEvent::new(
+                            evdev::EventType::ABSOLUTE.0,
+                            AbsoluteAxisCode::ABS_RY.0,
+                            (y.to_degrees() * GYROSCOPE_EVENT_RESOLUTION * imu_output_scale) as i32,
+                        ),
+                        evdev::InputEvent::new(
+                            evdev::EventType::ABSOLUTE.0,
+                            AbsoluteAxisCode::ABS_RZ.0,
+                            (z.to_degrees() * GYROSCOPE_EVENT_RESOLUTION * imu_output_scale) as i32,
+                        ),
+                    ])
+                    .expect("Failed to emit an event (virtual gyroscope)")
+            },
+            SSC_OPEN_TIMEOUT,
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                if e.code() == 19 {
+                    // { domain: g-io-error-quark, code: 19, message: "Operation was cancelled" }
+                    println!(
+                        "Most likely timed out while opening the gyroscope, make sure hexagonrpcd is running correctly"
+                    )
+                }
+                panic!(
+                    "Failed to open the gyroscope! (domain = {}, error = {})",
+                    e.domain().as_str(),
+                    e
+                );
+            }
+        }
     };
 
     let _accelerometer = {
@@ -212,32 +232,49 @@ fn main() {
         let matrix = get_mount_matrix(ENV_ACCELEROMETER_MOUNT_MATRIX);
         let device = Arc::clone(&device);
 
-        sensors::Accelerometer::try_create(move |x, y, z| {
-            let mut device = device.lock().unwrap();
+        match sensors::Accelerometer::try_create(
+            move |x, y, z| {
+                let mut device = device.lock().unwrap();
 
-            let (x, y, z) = apply_matrix(&matrix, x, y, z);
+                let (x, y, z) = apply_matrix(&matrix, x, y, z);
 
-            device
-                .emit(&[
-                    evdev::InputEvent::new(
-                        evdev::EventType::ABSOLUTE.0,
-                        AbsoluteAxisCode::ABS_X.0,
-                        (x * ACCELEROMETER_EVENT_RESOLUTION) as i32,
-                    ),
-                    evdev::InputEvent::new(
-                        evdev::EventType::ABSOLUTE.0,
-                        AbsoluteAxisCode::ABS_Y.0,
-                        (y * ACCELEROMETER_EVENT_RESOLUTION) as i32,
-                    ),
-                    evdev::InputEvent::new(
-                        evdev::EventType::ABSOLUTE.0,
-                        AbsoluteAxisCode::ABS_Z.0,
-                        (z * ACCELEROMETER_EVENT_RESOLUTION) as i32,
-                    ),
-                ])
-                .expect("Failed to emit an event (virtual accelerometer)")
-        })
-        .expect("Failed to open the accelerometer!")
+                device
+                    .emit(&[
+                        evdev::InputEvent::new(
+                            evdev::EventType::ABSOLUTE.0,
+                            AbsoluteAxisCode::ABS_X.0,
+                            (x * ACCELEROMETER_EVENT_RESOLUTION) as i32,
+                        ),
+                        evdev::InputEvent::new(
+                            evdev::EventType::ABSOLUTE.0,
+                            AbsoluteAxisCode::ABS_Y.0,
+                            (y * ACCELEROMETER_EVENT_RESOLUTION) as i32,
+                        ),
+                        evdev::InputEvent::new(
+                            evdev::EventType::ABSOLUTE.0,
+                            AbsoluteAxisCode::ABS_Z.0,
+                            (z * ACCELEROMETER_EVENT_RESOLUTION) as i32,
+                        ),
+                    ])
+                    .expect("Failed to emit an event (virtual accelerometer)")
+            },
+            SSC_OPEN_TIMEOUT,
+        ) {
+            Ok(v) => v,
+            Err(e) => {
+                if e.code() == 19 {
+                    // { domain: g-io-error-quark, code: 19, message: "Operation was cancelled" }
+                    println!(
+                        "Most likely timed out while opening the accelerometer, make sure hexagonrpcd is running correctly"
+                    )
+                }
+                panic!(
+                    "Failed to open the accelerometer! (domain = {}, error = {})",
+                    e.domain().as_str(),
+                    e
+                );
+            }
+        }
     };
 
     println!("Sources ready, starting main loop...");

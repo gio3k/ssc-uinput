@@ -4,19 +4,22 @@
 mod raw;
 use glib::Error;
 use glib::translate::FromGlibPtrFull;
+use std::time::Duration;
 
 pub struct Gyroscope {
     _device: raw::SscObject,
 }
 
 impl Gyroscope {
-    pub fn try_create<F>(callback: F) -> Result<Self, Error>
+    pub fn try_create<F>(callback: F, timeout: Duration) -> Result<Self, Error>
     where
         F: FnMut(f32, f32, f32) + 'static,
     {
+        let cancellable = raw::Cancellable::cancel_after(timeout);
+
         let mut err: *mut raw::GError = std::ptr::null_mut();
         let ptr = unsafe {
-            let ptr = raw::ssc_sensor_gyroscope_new_sync(std::ptr::null_mut(), &mut err);
+            let ptr = raw::ssc_sensor_gyroscope_new_sync(cancellable.ptr(), &mut err);
 
             if !err.is_null() {
                 return Err(Error::from_glib_full(err as *mut glib::ffi::GError));
@@ -34,11 +37,12 @@ impl Gyroscope {
         unsafe {
             let result = raw::ssc_sensor_gyroscope_open_sync(
                 ptr as *mut raw::_SSCSensorGyroscope,
-                std::ptr::null_mut(),
+                cancellable.ptr(),
                 &mut err,
             );
 
             if !err.is_null() || result != 1 {
+                let ys = Error::from_glib_full(err as *mut glib::ffi::GError);
                 return Err(Error::from_glib_full(err as *mut glib::ffi::GError));
             }
         }
@@ -52,13 +56,15 @@ pub struct Accelerometer {
 }
 
 impl Accelerometer {
-    pub fn try_create<F>(callback: F) -> Result<Self, Error>
+    pub fn try_create<F>(callback: F, timeout: Duration) -> Result<Self, Error>
     where
         F: FnMut(f32, f32, f32) + 'static,
     {
+        let cancellable = raw::Cancellable::cancel_after(timeout);
+
         let mut err: *mut raw::GError = std::ptr::null_mut();
         let ptr = unsafe {
-            let ptr = raw::ssc_sensor_accelerometer_new_sync(std::ptr::null_mut(), &mut err);
+            let ptr = raw::ssc_sensor_accelerometer_new_sync(cancellable.ptr(), &mut err);
 
             if !err.is_null() {
                 return Err(Error::from_glib_full(err as *mut glib::ffi::GError));
@@ -76,7 +82,7 @@ impl Accelerometer {
         unsafe {
             let result = raw::ssc_sensor_accelerometer_open_sync(
                 ptr as *mut raw::_SSCSensorAccelerometer,
-                std::ptr::null_mut(),
+                cancellable.ptr(),
                 &mut err,
             );
 
